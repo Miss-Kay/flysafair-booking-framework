@@ -36,14 +36,17 @@ export class HomePage extends BasePage {
   async searchFlights(criteria: SearchCriteria): Promise<void> {
     await this.departureField.type(criteria.from);
     await this.selectSuggestion(criteria.from);
+    await this.checkpointReached('01a-departure-selected');
 
     await this.arrivalField.type(criteria.to);
     await this.selectSuggestion(criteria.to);
+    await this.checkpointReached('01b-arrival-selected');
 
     await this.pickDates(criteria);
+    await this.checkpointReached('01c-dates-selected');
 
     await this.searchButton.click();
-    await this.checkpointReached('01-search-submitted');
+    await this.checkpointReached('01d-search-submitted');
   }
 
   /**
