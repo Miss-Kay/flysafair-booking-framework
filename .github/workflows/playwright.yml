@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron: '0 4 * * *'   # daily funnel health check, 06:00 SAST
+    - cron: '0 4 * * 1'   # weekly funnel health check, Mondays 06:00 SAST
   workflow_dispatch:        # manual trigger from the Actions tab
 
 permissions:

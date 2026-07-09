@@ -53,8 +53,8 @@ BASE_URL=https://staging.example.com npm test
 
 ## CI/CD
 
-`.github/workflows/playwright.yml` runs on push, PR, a daily 06:00 SAST
-schedule, and manual dispatch. Reports upload as a GitHub artifact **and**
+`.github/workflows/playwright.yml` runs on push, PR, a weekly schedule
+(Mondays 06:00 SAST), and manual dispatch. Reports upload as a GitHub artifact **and**
 sync to an S3 static-website bucket, so stakeholders get a link, not a zip.
 
 ### One-time AWS setup
