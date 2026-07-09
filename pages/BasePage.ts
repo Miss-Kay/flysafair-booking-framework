@@ -1,4 +1,4 @@
-import { Page, expect } from '@playwright/test';
+import { Page, expect, test } from '@playwright/test';
 
 /**
  * BasePage: shared plumbing for every page object.
@@ -24,11 +24,16 @@ export abstract class BasePage {
     }
   }
 
-  /** Drop-off instrumentation: assert + screenshot at each funnel step. */
+  /**
+   * Drop-off instrumentation: screenshot at each funnel step, attached to
+   * the test so it appears in the HTML report (and therefore on the S3
+   * report site) instead of dying on the CI runner's disk.
+   */
   async checkpointReached(stepName: string): Promise<void> {
-    await this.page.screenshot({
-      path: `test-results/funnel/${Date.now()}-${stepName}.png`,
-      fullPage: false,
+    const screenshot = await this.page.screenshot({ fullPage: false });
+    await test.info().attach(stepName, {
+      body: screenshot,
+      contentType: 'image/png',
     });
     console.info(`[FUNNEL] checkpoint reached: ${stepName}`);
   }

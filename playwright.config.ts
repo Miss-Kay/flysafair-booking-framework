@@ -18,7 +18,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL ?? 'https://www.emirates.com',
     trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
+    screenshot: 'on',
     video: 'retain-on-failure',
     // A realistic UA and viewport reduce (but don't eliminate) bot challenges.
     viewport: { width: 1440, height: 900 },
