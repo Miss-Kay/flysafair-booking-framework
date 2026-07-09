@@ -1,6 +1,7 @@
 import { Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
+import { site } from './siteProfile';
 
 /**
  * MOCK BOOKING ENGINE
@@ -12,11 +13,10 @@ import * as path from 'path';
  * fixtures/html/flight-results.html instead, so the run never touches
  * production inventory or trips the bot defence.
  */
-const BOOKING_ENGINE = /fly\d*\.emirates\.com|emirates\.com\/booking\//;
 const RESULTS_FIXTURE = path.join(__dirname, 'html', 'flight-results.html');
 
 export async function mockBookingEngine(page: Page): Promise<void> {
-  await page.route(BOOKING_ENGINE, route =>
+  await page.route(site.bookingEnginePattern, route =>
     route.fulfill({
       contentType: 'text/html',
       body: fs.readFileSync(RESULTS_FIXTURE, 'utf-8'),

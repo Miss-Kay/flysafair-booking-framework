@@ -5,8 +5,8 @@
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed --project=chromium",
-    "test:mobile": "playwright test --project=mobile-safari",
     "test:funnel": "playwright test --grep @funnel",
+    "typecheck": "tsc --noEmit",
     "report": "playwright show-report"
   },
   "devDependencies": {

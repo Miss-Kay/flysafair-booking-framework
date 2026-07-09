@@ -8,10 +8,11 @@ reports to AWS S3.
 ## The problem it solves
 
 Booking funnels lose customers silently, starting with the search widget on
-the homepage. This suite currently covers **the search step**: it drives the
-real emirates.com homepage (Johannesburg → Dubai, return) through the
-airport autocomplete, calendar, and submit, capturing a checkpoint
-screenshot along the way.
+the homepage. This suite currently covers **the search step**: a data-driven
+matrix of searches (see `fixtures/testData.ts`) drives the real emirates.com
+homepage through the airport autocomplete, calendar, and submit, attaches a
+screenshot at every sub-step, and asserts the handoff lands on a results
+page.
 
 > The handoff to the booking engine after submit is **served from local
 > fixture HTML** (`fixtures/mockBookingEngine.ts`): the production booking
@@ -25,9 +26,15 @@ screenshot along the way.
 tests/       one spec per journey, readable as a funnel narrative
 pages/       page objects — locators + actions only, no assertions logic
 utils/       selfHealing.ts — ordered locator fallback chains
-fixtures/    typed test data, booking-engine mock + fixture HTML
-.github/     CI workflow: run suite, publish HTML report to S3
+fixtures/    siteProfile.ts (all site-specific values), typed test data,
+             booking-engine mock + fixture HTML
+.github/     CI workflow + Dependabot: run suite, publish report to S3
 ```
+
+**Adopting for another airline:** write a new `SiteProfile` (URLs, locale,
+booking-engine pattern), a page object for that airline's search widget, and
+fixture HTML for its booking-engine pages. Nothing else references the
+airline.
 
 Three design rules keep it maintainable:
 1. **Selectors live only in page objects** — a UI change touches one file.
@@ -53,9 +60,14 @@ BASE_URL=https://staging.example.com npm test
 
 ## CI/CD
 
-`.github/workflows/playwright.yml` runs on push, PR, a weekly schedule
-(Mondays 06:00 SAST), and manual dispatch. Reports upload as a GitHub artifact **and**
-sync to an S3 static-website bucket, so stakeholders get a link, not a zip.
+`.github/workflows/playwright.yml` typechecks, runs the suite, and publishes
+reports on push, PR, a weekly schedule (Mondays 06:00 SAST), and manual
+dispatch. Reports upload as a GitHub artifact **and** sync to S3 — both a
+per-run URL and a stable `reports/latest/` link, served over HTTPS via
+CloudFront (`REPORT_BASE_URL` repo variable). Old reports expire from S3
+after 90 days via a lifecycle rule. Set an optional `SLACK_WEBHOOK_URL`
+repo secret to get a Slack ping when a run fails. Dependabot keeps npm
+packages and GitHub Actions current with weekly PRs.
 
 ### One-time AWS setup
 
@@ -83,5 +95,5 @@ CI will often be challenged. Recommended usage:
 
 - API-level funnel checks (Playwright `request`) — faster drop-off signal
 - Data-driven passenger matrices (adult/child/infant)
-- Slack webhook on funnel checkpoint failure
 - Lighthouse perf budget on the results page
+- Restore results/fare/passenger funnel steps against fixture pages

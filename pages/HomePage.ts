@@ -2,6 +2,7 @@ import { Page } from '@playwright/test';
 import { BasePage } from './BasePage';
 import { healing } from '../utils/selfHealing';
 import { SearchCriteria } from '../fixtures/testData';
+import { site } from '../fixtures/siteProfile';
 
 /**
  * Emirates home page — flight search widget.
@@ -89,7 +90,7 @@ export class HomePage extends BasePage {
   /** Date cells are buttons named e.g. "Saturday, 08 August 2026". */
   private async clickDateCell(isoDate: string): Promise<void> {
     const [year, month, day] = isoDate.split('-').map(Number);
-    const monthName = new Date(Date.UTC(year, month - 1, 1)).toLocaleString('en-GB', {
+    const monthName = new Date(Date.UTC(year, month - 1, 1)).toLocaleString(site.dateLabelLocale, {
       month: 'long',
       timeZone: 'UTC',
     });

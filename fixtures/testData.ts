@@ -22,3 +22,14 @@ export const defaultSearch: SearchCriteria = {
   returnDate: daysFromNow(37),
   tripType: 'return',
 };
+
+/** Data-driven matrix — the spec generates one test per entry. */
+export const searchMatrix: SearchCriteria[] = [
+  defaultSearch,
+  {
+    from: 'Johannesburg',
+    to: 'Dubai',
+    departDate: daysFromNow(45),
+    tripType: 'oneway',
+  },
+];

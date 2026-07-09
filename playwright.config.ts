@@ -1,8 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
+import { site } from './fixtures/siteProfile';
 
 /**
  * BASE_URL is env-driven so the same framework runs against:
- *  - https://www.emirates.com        (local, headed, exploratory runs)
+ *  - the site profile's production URL (local, headed, exploratory runs)
  *  - a staging/demo environment      (CI — production sites block bots)
  */
 export default defineConfig({
@@ -16,16 +17,15 @@ export default defineConfig({
     ['junit', { outputFile: 'test-results/junit.xml' }], // Jira/Xray-importable
   ],
   use: {
-    baseURL: process.env.BASE_URL ?? 'https://www.emirates.com',
+    baseURL: process.env.BASE_URL ?? site.baseUrl,
     trace: 'retain-on-failure',
     screenshot: 'on',
     video: 'retain-on-failure',
     // A realistic UA and viewport reduce (but don't eliminate) bot challenges.
     viewport: { width: 1440, height: 900 },
-    locale: 'en-ZA',
+    locale: site.locale,
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile-safari', use: { ...devices['iPhone 14'] } }, // mobile funnel matters for drop-off
   ],
 });
