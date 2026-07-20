@@ -20,6 +20,15 @@ export interface SiteProfile {
   bookingEnginePattern: RegExp;
   /** Heading that proves the search handoff landed on a results page. */
   resultsHeading: RegExp;
+  /**
+   * Signatures of the site's bot-protection / "access restricted"
+   * interstitial — the URL it redirects to, and text unique to the page.
+   * When a request is served this page (common from datacenter IPs, and
+   * from any IP the site has flagged), the test skips rather than
+   * false-failing: it is not a code regression. See BasePage.isBotBlocked().
+   */
+  botBlockUrlPattern: RegExp;
+  botBlockPattern: RegExp;
 }
 
 export const emirates: SiteProfile = {
@@ -30,6 +39,8 @@ export const emirates: SiteProfile = {
   dateLabelLocale: 'en-GB',
   bookingEnginePattern: /fly\d*\.emirates\.com|emirates\.com\/booking\//,
   resultsHeading: /choose your outbound flight/i,
+  botBlockUrlPattern: /\/error\/accessrestricted/i,
+  botBlockPattern: /the page you.?re trying to access is restricted/i,
 };
 
 /** The profile the suite runs against. */

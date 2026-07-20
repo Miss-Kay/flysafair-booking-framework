@@ -85,11 +85,27 @@ Optionally also set a `BASE_URL` repo variable to run CI against staging.
 
 ### Note on production bot protection
 
-emirates.com (like all airline sites) uses bot detection; datacenter IPs in
-CI will often be challenged. Recommended usage:
-- **Local headed runs** against emirates.com for exploratory validation.
-- **CI runs** against a staging env or a demo booking site — the framework
-  is identical, only `BASE_URL` changes.
+emirates.com (like all airline sites) uses bot detection. A flagged request
+is redirected to `/error/accessrestricted.html` instead of the homepage —
+datacenter IPs (CI runners) are challenged most often, but a residential IP
+that has generated repeated automated traffic gets flagged too.
+
+**The suite skips rather than fails when it sees that page.** An external
+block is not a code regression, so a blocked run reports `skipped` with the
+reason attached (see `BasePage.isBotBlocked()` and the `botBlock*` patterns
+in `fixtures/siteProfile.ts`). A red pipeline is reserved for real defects.
+
+Consequence worth understanding: **a skipped run verifies nothing.** If runs
+skip persistently, the monitor has stopped monitoring. Options, in order of
+preference:
+- Point `BASE_URL` at a **staging environment** without bot protection.
+- Get the monitor's egress IP **allowlisted** in the site's bot manager
+  (the standard arrangement for authorized synthetic monitoring).
+- Run **locally from a clean network** for exploratory validation.
+
+The framework deliberately does **not** attempt to evade bot protection —
+no fingerprint spoofing, no stealth plugins. That would be both fragile and
+inappropriate against a production site.
 
 ## Roadmap
 

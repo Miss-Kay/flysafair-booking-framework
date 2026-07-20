@@ -1,4 +1,5 @@
 import { Page, expect, test } from '@playwright/test';
+import { site } from '../fixtures/siteProfile';
 
 /**
  * BasePage: shared plumbing for every page object.
@@ -40,5 +41,19 @@ export abstract class BasePage {
 
   async expectUrlContains(fragment: string): Promise<void> {
     await expect(this.page).toHaveURL(new RegExp(fragment, 'i'));
+  }
+
+  /**
+   * True when the site served its bot-protection interstitial instead of
+   * the real page — common when the request comes from a datacenter IP
+   * (CI runners). The block page is static and present at load, so a
+   * no-wait visibility check is enough and costs nothing on a normal run.
+   */
+  async isBotBlocked(): Promise<boolean> {
+    if (site.botBlockUrlPattern.test(this.page.url())) return true;
+    return this.page
+      .getByText(site.botBlockPattern)
+      .isVisible()
+      .catch(() => false);
   }
 }
