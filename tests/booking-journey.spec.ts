@@ -1,46 +1,50 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
 import { HomePage } from '../pages/HomePage';
+import { FlightResultsPage } from '../pages/FlightResultsPage';
+import { PassengerDetailsPage } from '../pages/PassengerDetailsPage';
 import { searchMatrix } from '../fixtures/testData';
 import { site } from '../fixtures/siteProfile';
-import { mockBookingEngine } from '../fixtures/mockBookingEngine';
 
 /**
- * BOOKING FUNNEL — SEARCH STEP
+ * BOOKING FUNNEL — FlySafair
  * One test per entry in the search matrix. Each drives the real homepage
- * search widget (autocomplete, calendar, submit) and asserts the handoff
- * lands on a results page. The booking engine itself is served from local
- * fixtures (see mockBookingEngine) so the run never hits the bot-protected
- * production engine.
+ * search widget (autocomplete, v-calendar, submit), confirms flight
+ * results render, selects a flight, and confirms the customer-details
+ * page is displayed — stopping there by design, before any personal data
+ * or payment. FlySafair permits automation, so the whole flow runs live.
  *
- * If the homepage itself serves the site's bot-protection page (typical
- * from CI datacenter IPs), the test SKIPS rather than fails — that is an
- * external block, not a code regression. Run locally or against an
- * allowlisted/staging BASE_URL for a guaranteed real execution.
+ * If the site ever serves a bot-protection page, the test SKIPS rather
+ * than fails (see BasePage.isBotBlocked) — that is an external block, not
+ * a code regression.
  */
 test.describe(`${site.name} booking funnel`, () => {
   for (const criteria of searchMatrix) {
-    test(
-      `customer can search ${criteria.from} → ${criteria.to} (${criteria.tripType}) @funnel @smoke`,
-      async ({ page }) => {
-        const home = new HomePage(page);
+    const label = `${criteria.from} → ${criteria.to} (${criteria.tripType})`;
+    test(`customer can search, select a flight and reach details — ${label} @funnel @smoke`, async ({ page }) => {
+      const home = new HomePage(page);
+      const results = new FlightResultsPage(page);
+      const paxDetails = new PassengerDetailsPage(page);
 
-        await mockBookingEngine(page);
+      await test.step('Step 1 — search for a flight', async () => {
+        await home.open(site.entryPath);
+        test.skip(
+          await home.isBotBlocked(),
+          `${site.name} served its bot-protection page to this runner IP — skipping (not a code failure)`,
+        );
+        await home.searchFlights(criteria);
+      });
 
-        await test.step('Step 1 — search for a flight', async () => {
-          await home.open(site.entryPath);
-          test.skip(
-            await home.isBotBlocked(),
-            `${site.name} served its bot-protection page to this runner IP — skipping (not a code failure)`,
-          );
-          await home.searchFlights(criteria);
-        });
+      await test.step('Step 2 — flight results render', async () => {
+        await results.assertResultsLoaded();
+      });
 
-        await test.step('Step 2 — search lands on a results page', async () => {
-          await expect(
-            page.getByRole('heading', { name: site.resultsHeading }),
-          ).toBeVisible();
-        });
-      },
-    );
+      await test.step('Step 3 — select a flight', async () => {
+        await results.selectFirstFlight();
+      });
+
+      await test.step('Step 4 — customer details page is displayed', async () => {
+        await paxDetails.assertCustomerDetailsDisplayed();
+      });
+    });
   }
 });

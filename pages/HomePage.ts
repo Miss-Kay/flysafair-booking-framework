@@ -5,8 +5,8 @@ import { SearchCriteria } from '../fixtures/testData';
 import { site } from '../fixtures/siteProfile';
 
 /**
- * Emirates home page — flight search widget.
- * Every interactive element uses a self-healing locator chain:
+ * FlySafair home page — flight search widget.
+ * Interactive elements use self-healing locator chains:
  *   1. test id / stable attribute   (most stable)
  *   2. accessible role + name       (survives CSS refactors)
  *   3. visible text / placeholder   (last resort)
@@ -16,85 +16,133 @@ export class HomePage extends BasePage {
     super(page);
   }
 
-  private departureField = healing(this.page, 'Departure airport', [
-    { name: 'data-testid', build: p => p.locator('[data-testid="origin-input"]') },
-    { name: 'role=textbox Departure', build: p => p.getByRole('textbox', { name: /departure|from/i }) },
-    { name: 'label', build: p => p.getByLabel(/departure|from/i) },
+  private oneWayToggle = healing(this.page, 'One-way trip type', [
+    { name: 'role=radio oneWay', build: p => p.getByRole('radio', { name: /one.?way/i }) },
+    { name: 'label One-way', build: p => p.getByText(/^one-way$/i) },
   ]);
 
-  private arrivalField = healing(this.page, 'Arrival airport', [
-    { name: 'data-testid', build: p => p.locator('[data-testid="destination-input"]') },
-    { name: 'role=textbox Arrival', build: p => p.getByRole('textbox', { name: /arrival|to/i }) },
-    { name: 'label', build: p => p.getByLabel(/arrival|to/i) },
+  private originField = healing(this.page, 'Origin airport', [
+    { name: 'placeholder origin', build: p => p.getByPlaceholder(/select origin/i) },
+    { name: 'role=searchbox origin', build: p => p.getByRole('searchbox', { name: /origin/i }) },
   ]);
 
-  private searchButton = healing(this.page, 'Search flights button', [
-    { name: 'data-testid', build: p => p.locator('[data-testid="search-flights"]') },
-    { name: 'role=button', build: p => p.getByRole('button', { name: /search flights?/i }) },
-    { name: 'text', build: p => p.getByText(/search flights?/i) },
+  private destinationField = healing(this.page, 'Destination airport', [
+    { name: 'placeholder destination', build: p => p.getByPlaceholder(/select destination/i) },
+    { name: 'role=searchbox destination', build: p => p.getByRole('searchbox', { name: /destination/i }) },
+  ]);
+
+  private searchButton = healing(this.page, "Let's go (search) button", [
+    { name: 'role=button', build: p => p.getByRole('button', { name: /let.?s go/i }) },
+    { name: 'text', build: p => p.getByText(/let.?s go/i) },
   ]);
 
   async searchFlights(criteria: SearchCriteria): Promise<void> {
-    await this.departureField.type(criteria.from);
-    await this.selectSuggestion(criteria.from);
-    await this.checkpointReached('01a-departure-selected');
+    // Wait for the search widget to be interactive before touching the trip
+    // type — clicking too early doesn't register and the search stays a
+    // round-trip, which would strand the funnel at return-flight selection.
+    await this.originField.resolve();
 
-    await this.arrivalField.type(criteria.to);
-    await this.selectSuggestion(criteria.to);
-    await this.checkpointReached('01b-arrival-selected');
+    if (criteria.tripType === 'oneway') {
+      await this.ensureOneWay();
+    }
 
-    await this.pickDates(criteria);
-    await this.checkpointReached('01c-dates-selected');
+    await this.selectAirport(this.originField, criteria.from, criteria.fromCode);
+    await this.checkpointReached('01a-origin-selected');
+
+    await this.selectAirport(this.destinationField, criteria.to, criteria.toCode);
+    await this.checkpointReached('01b-destination-selected');
+
+    await this.pickDepartureDate(criteria.departDate);
+    await this.setAdults(criteria.adults);
+    await this.checkpointReached('01c-date-and-pax-selected');
 
     await this.searchButton.click();
     await this.checkpointReached('01d-search-submitted');
   }
 
   /**
-   * Airport fields are autocomplete widgets. The suggestion list is not
-   * always filtered by the typed text (it can still show every destination
-   * alphabetically), so we must click the option matching the requested
-   * city — blindly taking the first option selects e.g. Abidjan.
+   * Selecting one-way is racy in this SPA — a single click sometimes doesn't
+   * register, leaving a round-trip search that strands the funnel at
+   * return-flight selection. Poll-click until the radio actually reports
+   * checked, so the trip type is deterministic.
    */
-  private async selectSuggestion(city: string): Promise<void> {
-    const suggestion = this.page.getByRole('option', { name: new RegExp(city, 'i') }).first();
-    try {
-      await suggestion.click({ timeout: 10_000 });
-    } catch {
-      await this.page.keyboard.press('Enter'); // fallback: accept typed value
+  private async ensureOneWay(): Promise<void> {
+    const oneWayRadio = this.page.getByRole('radio', { name: /one.?way/i });
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (await oneWayRadio.isChecked().catch(() => false)) return;
+      await this.oneWayToggle.click().catch(() => {});
+      await this.page.waitForTimeout(400);
+    }
+    if (!(await oneWayRadio.isChecked().catch(() => false))) {
+      throw new Error('[SEARCH] Could not select the one-way trip type');
     }
   }
 
-  private async pickDates(criteria: SearchCriteria): Promise<void> {
-    // The calendar opens automatically after the arrival airport is chosen.
-    // The widget defaults to a return trip, so one-way must be set explicitly;
-    // for return trips the calendar stays open for the second date.
-    if (criteria.tripType === 'oneway') {
-      const oneWay = this.page.getByRole('checkbox', { name: /one way/i });
-      try {
-        await oneWay.check({ timeout: 5000 });
-      } catch {
-        await this.page.getByText(/one way/i).first().click(); // hidden input — click the label
-      }
-    }
-
-    await this.clickDateCell(criteria.departDate);
-    if (criteria.tripType === 'return') {
-      if (!criteria.returnDate) {
-        throw new Error('[SEARCH] tripType is "return" but no returnDate was provided');
-      }
-      await this.clickDateCell(criteria.returnDate);
-    }
+  /**
+   * Airport fields are autocomplete widgets whose list is built from real
+   * keystrokes. Type the city, then click the suggestion carrying the IATA
+   * code so we pick the intended airport (e.g. JNB, not a partner route).
+   */
+  private async selectAirport(
+    field: ReturnType<typeof healing>,
+    city: string,
+    code: string,
+  ): Promise<void> {
+    await field.type(city);
+    await this.page
+      .getByRole('option')
+      .filter({ hasText: new RegExp(`\\b${code}\\b`) })
+      .first()
+      .click({ timeout: 10_000 });
   }
 
-  /** Date cells are buttons named e.g. "Saturday, 08 August 2026". */
-  private async clickDateCell(isoDate: string): Promise<void> {
-    const [year, month, day] = isoDate.split('-').map(Number);
-    const monthName = new Date(Date.UTC(year, month - 1, 1)).toLocaleString(site.dateLabelLocale, {
+  /**
+   * The date field is a v-calendar popover. Open it, advance by the number
+   * of months between today and the target, then click the day whose
+   * accessible label matches — scoped to the open popover and to the
+   * in-month cell so the twin (return) calendar and faded adjacent-month
+   * days can't be hit by mistake.
+   */
+  private async pickDepartureDate(isoDate: string): Promise<void> {
+    const target = new Date(`${isoDate}T00:00:00Z`);
+    const aria = target.toLocaleDateString(site.dateLabelLocale, {
+      weekday: 'long',
+      day: 'numeric',
       month: 'long',
+      year: 'numeric',
       timeZone: 'UTC',
     });
-    const cellName = new RegExp(`${String(day).padStart(2, '0')} ${monthName} ${year}`);
-    await this.page.getByRole('button', { name: cellName }).first().click();
+    const now = new Date();
+    const monthDelta =
+      (target.getUTCFullYear() - now.getFullYear()) * 12 +
+      (target.getUTCMonth() - now.getMonth());
+
+    await this.page.locator('.datepicker-trigger').first().click();
+    const popover = this.page.locator('.vc-popover-content').first();
+    await popover.waitFor({ state: 'visible' });
+
+    for (let i = 0; i < Math.max(0, monthDelta); i++) {
+      await popover.locator('.vc-arrow.is-right').click();
+      await this.page.waitForTimeout(300); // let the month transition settle
+    }
+
+    await popover
+      .locator(`.vc-day:not(.is-not-in-month) .vc-day-content[aria-label="${aria}"]`)
+      .first()
+      .click();
+  }
+
+  /** Passenger counts default to 1 adult; only act when a higher count is asked. */
+  private async setAdults(adults: number): Promise<void> {
+    if (adults <= 1) return;
+    if (adults <= 3) {
+      await this.page
+        .locator('.passenger-select-buttons__button')
+        .filter({ hasText: new RegExp(`^${adults}$`) })
+        .first()
+        .click();
+    } else {
+      await this.page.getByRole('combobox', { name: /more/i }).selectOption(String(adults));
+    }
   }
 }

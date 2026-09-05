@@ -1,24 +1,38 @@
-# Emirates Booking Funnel — Test Automation Framework
+# Airline Booking Funnel — Test Automation Framework
 
 Playwright + TypeScript framework that monitors the flight-booking journey to
 detect **customer drop-off points** before customers do. Built to be simple,
 maintainable, and self-healing, with CI/CD via GitHub Actions publishing
-reports to AWS S3.
+reports to AWS S3. The active target is **FlySafair**; the site-agnostic
+design (see `fixtures/siteProfile.ts`) makes another airline a new profile.
 
 ## The problem it solves
 
-Booking funnels lose customers silently, starting with the search widget on
-the homepage. This suite currently covers **the search step**: a data-driven
-matrix of searches (see `fixtures/testData.ts`) drives the real emirates.com
-homepage through the airport autocomplete, calendar, and submit, attaches a
-screenshot at every sub-step, and asserts the handoff lands on a results
-page.
+Booking funnels lose customers silently. This suite walks the **live
+FlySafair booking funnel** end-to-end and asserts each checkpoint:
 
-> The handoff to the booking engine after submit is **served from local
-> fixture HTML** (`fixtures/mockBookingEngine.ts`): the production booking
-> engine sits behind bot protection and blocks automated sessions, so no
-> request past the search ever reaches it — no inventory holds, no
-> bot-defence evasion.
+1. **Search** — one-way Johannesburg (JNB) → Cape Town (CPT), 1 adult,
+   departing 30 days out, driven through the real airport autocomplete and
+   v-calendar (`fixtures/testData.ts` is the data-driven matrix).
+2. **Results render** — confirms the flight-selection page loads.
+3. **Flight selection** — picks the first bookable flight and its cheapest
+   fare, then continues.
+4. **Customer details** — confirms the passenger-details page is displayed.
+
+A screenshot is attached at every sub-step, so a failure shows exactly what
+the customer would have seen.
+
+> **Hard stop by design:** the suite reaches the customer-details page and
+> stops — it never enters personal data or proceeds to payment against the
+> production site.
+
+> **Why FlySafair?** Major flag carriers (Emirates, Singapore Airlines) block
+> automated browsers outright — their sites serve a bot-protection page to
+> Playwright while loading normally in a real browser. FlySafair permits
+> automation, so the whole funnel runs live. The framework does **not**
+> attempt to evade bot protection; where a site blocks it, the test skips
+> (see below) rather than faking a human session. The Emirates profile is
+> kept in `fixtures/siteProfile.ts` for reference.
 
 ## Architecture (deliberately simple)
 
@@ -26,8 +40,7 @@ page.
 tests/       one spec per journey, readable as a funnel narrative
 pages/       page objects — locators + actions only, no assertions logic
 utils/       selfHealing.ts — ordered locator fallback chains
-fixtures/    siteProfile.ts (all site-specific values), typed test data,
-             booking-engine mock + fixture HTML
+fixtures/    siteProfile.ts (all site-specific values) + typed test data
 .github/     CI workflow + Dependabot: run suite, publish report to S3
 ```
 
@@ -85,23 +98,26 @@ Optionally also set a `BASE_URL` repo variable to run CI against staging.
 
 ### Note on production bot protection
 
-emirates.com (like all airline sites) uses bot detection. A flagged request
-is redirected to `/error/accessrestricted.html` instead of the homepage —
-datacenter IPs (CI runners) are challenged most often, but a residential IP
-that has generated repeated automated traffic gets flagged too.
+FlySafair (the active target) permits automation, so the funnel runs live.
+Other airlines don't: a flagged request is served a bot-protection page
+(e.g. Emirates redirects to `/error/accessrestricted.html`) while the site
+loads normally in a real browser.
 
-**The suite skips rather than fails when it sees that page.** An external
-block is not a code regression, so a blocked run reports `skipped` with the
-reason attached (see `BasePage.isBotBlocked()` and the `botBlock*` patterns
-in `fixtures/siteProfile.ts`). A red pipeline is reserved for real defects.
+**When a profile defines its bot-block signatures and the site serves that
+page, the suite skips rather than fails.** An external block is not a code
+regression, so the run reports `skipped` with the reason attached (see
+`BasePage.isBotBlocked()` and the optional `botBlock*` patterns in
+`fixtures/siteProfile.ts`). A red pipeline is reserved for real defects.
 
-Consequence worth understanding: **a skipped run verifies nothing.** If runs
-skip persistently, the monitor has stopped monitoring. Options, in order of
-preference:
+Consequence worth understanding: **a skipped run verifies nothing.** For a
+blocked target the options, in order of preference, are:
 - Point `BASE_URL` at a **staging environment** without bot protection.
 - Get the monitor's egress IP **allowlisted** in the site's bot manager
   (the standard arrangement for authorized synthetic monitoring).
 - Run **locally from a clean network** for exploratory validation.
+
+The framework never tries to defeat bot protection — no fingerprint spoofing,
+no stealth plugins.
 
 The framework deliberately does **not** attempt to evade bot protection —
 no fingerprint spoofing, no stealth plugins. That would be both fragile and

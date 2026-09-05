@@ -50,7 +50,8 @@ export abstract class BasePage {
    * no-wait visibility check is enough and costs nothing on a normal run.
    */
   async isBotBlocked(): Promise<boolean> {
-    if (site.botBlockUrlPattern.test(this.page.url())) return true;
+    if (site.botBlockUrlPattern?.test(this.page.url())) return true;
+    if (!site.botBlockPattern) return false; // site permits automation
     return this.page
       .getByText(site.botBlockPattern)
       .isVisible()

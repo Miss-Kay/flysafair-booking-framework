@@ -16,32 +16,53 @@ export interface SiteProfile {
   locale: string;
   /** Locale of the month names in the calendar's accessible labels. */
   dateLabelLocale: string;
-  /** URLs owned by the bot-protected booking engine — served from fixtures. */
-  bookingEnginePattern: RegExp;
-  /** Heading that proves the search handoff landed on a results page. */
+  /** URL fragment the search handoff lands on when results render. */
+  resultsUrlPattern: RegExp;
+  /** Heading/text that proves the search landed on a results page. */
   resultsHeading: RegExp;
   /**
    * Signatures of the site's bot-protection / "access restricted"
    * interstitial — the URL it redirects to, and text unique to the page.
-   * When a request is served this page (common from datacenter IPs, and
-   * from any IP the site has flagged), the test skips rather than
-   * false-failing: it is not a code regression. See BasePage.isBotBlocked().
+   * When a request is served this page, the test skips rather than
+   * false-failing. See BasePage.isBotBlocked(). Optional: sites that
+   * permit automation (e.g. FlySafair) can omit these.
    */
-  botBlockUrlPattern: RegExp;
-  botBlockPattern: RegExp;
+  botBlockUrlPattern?: RegExp;
+  botBlockPattern?: RegExp;
 }
 
+/**
+ * FlySafair — the active target. Its whole search flow (autocomplete,
+ * v-calendar, fare selection) is automatable end-to-end: it does not
+ * block automated browsers, so no booking-engine mock is needed.
+ */
+export const flysafair: SiteProfile = {
+  name: 'FlySafair',
+  baseUrl: 'https://www.flysafair.co.za',
+  entryPath: '/',
+  locale: 'en-ZA',
+  dateLabelLocale: 'en-GB', // calendar aria-labels: "Monday, 5 October 2026"
+  resultsUrlPattern: /\/flight\/select/i,
+  resultsHeading: /select flights/i,
+};
+
+/**
+ * Emirates — kept for reference. Its production booking engine sits behind
+ * bot protection that blocks automated browsers outright (the homepage
+ * itself redirects to /error/accessrestricted.html), so this profile is
+ * not the active target. See git history for the fixture-mocked approach.
+ */
 export const emirates: SiteProfile = {
   name: 'Emirates',
   baseUrl: 'https://www.emirates.com',
   entryPath: '/za/english/',
   locale: 'en-ZA',
   dateLabelLocale: 'en-GB',
-  bookingEnginePattern: /fly\d*\.emirates\.com|emirates\.com\/booking\//,
+  resultsUrlPattern: /\/booking\//i,
   resultsHeading: /choose your outbound flight/i,
   botBlockUrlPattern: /\/error\/accessrestricted/i,
   botBlockPattern: /the page you.?re trying to access is restricted/i,
 };
 
 /** The profile the suite runs against. */
-export const site: SiteProfile = emirates;
+export const site: SiteProfile = flysafair;

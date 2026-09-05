@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
 import { site } from './fixtures/siteProfile';
 
 /**
@@ -26,6 +26,12 @@ export default defineConfig({
     locale: site.locale,
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      // Plain Chromium at a true desktop viewport. NB: the emulated
+      // "Desktop Chrome" device descriptor makes FlySafair serve a
+      // mobile-style fare accordion whose controls behave differently, so
+      // we deliberately don't use it — just the viewport from `use` above.
+      name: 'chromium',
+    },
   ],
 });
