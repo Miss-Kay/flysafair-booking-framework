@@ -15,7 +15,7 @@ set -euo pipefail
 # Usage:
 #   ./scripts/setup-aws-reports.sh <bucket-name> <aws-region> <github-org/repo>
 # Example:
-#   ./scripts/setup-aws-reports.sh emirates-funnel-reports eu-west-1 kulibabes/emirates-booking-framework
+#   ./scripts/setup-aws-reports.sh flysafair-funnel-reports eu-west-1 Miss-Kay/flysafair-booking-framework
 # ---------------------------------------------------------------------------
 
 BUCKET=${1:?usage: setup-aws-reports.sh <bucket-name> <aws-region> <github-org/repo>}

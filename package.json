@@ -1,7 +1,7 @@
 {
-  "name": "emirates-booking-framework",
+  "name": "flysafair-booking-framework",
   "version": "1.0.0",
-  "description": "Booking funnel drop-off monitoring framework — Playwright + TypeScript, self-healing locators, CI/CD to AWS",
+  "description": "FlySafair booking funnel drop-off monitoring framework — Playwright + TypeScript, self-healing locators, CI/CD to AWS",
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed --project=chromium",

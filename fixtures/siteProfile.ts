@@ -2,8 +2,8 @@
  * SITE PROFILE — every site-specific value lives in this one object.
  *
  * Adopting the framework for another airline means writing a new profile
- * (plus a page object and fixture HTML for that airline's widgets);
- * nothing else in the framework references the airline directly.
+ * (plus page objects for that airline's widgets); nothing else in the
+ * framework references the airline directly.
  */
 export interface SiteProfile {
   /** Human name — used in logs, reports, and test titles. */
@@ -44,24 +44,6 @@ export const flysafair: SiteProfile = {
   dateLabelLocale: 'en-GB', // calendar aria-labels: "Monday, 5 October 2026"
   resultsUrlPattern: /\/flight\/select/i,
   resultsHeading: /select flights/i,
-};
-
-/**
- * Emirates — kept for reference. Its production booking engine sits behind
- * bot protection that blocks automated browsers outright (the homepage
- * itself redirects to /error/accessrestricted.html), so this profile is
- * not the active target. See git history for the fixture-mocked approach.
- */
-export const emirates: SiteProfile = {
-  name: 'Emirates',
-  baseUrl: 'https://www.emirates.com',
-  entryPath: '/za/english/',
-  locale: 'en-ZA',
-  dateLabelLocale: 'en-GB',
-  resultsUrlPattern: /\/booking\//i,
-  resultsHeading: /choose your outbound flight/i,
-  botBlockUrlPattern: /\/error\/accessrestricted/i,
-  botBlockPattern: /the page you.?re trying to access is restricted/i,
 };
 
 /** The profile the suite runs against. */
