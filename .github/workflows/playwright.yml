@@ -37,9 +37,9 @@ jobs:
       - name: Run booking funnel suite
         run: npx playwright test --project=chromium
         env:
-          # Production bot protection often challenges datacenter IPs —
-          # set the BASE_URL repo variable to a staging env for reliable CI.
-          BASE_URL: ${{ vars.BASE_URL || 'https://www.emirates.com' }}
+          # Defaults to the active site profile (FlySafair) when unset; set the
+          # BASE_URL repo variable to point CI at a staging environment.
+          BASE_URL: ${{ vars.BASE_URL }}
 
       - name: Upload HTML report (GitHub artifact)
         if: always()
