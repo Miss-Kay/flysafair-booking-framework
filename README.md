@@ -26,13 +26,12 @@ the customer would have seen.
 > stops — it never enters personal data or proceeds to payment against the
 > production site.
 
-> **Why FlySafair?** Major flag carriers (Emirates, Singapore Airlines) block
-> automated browsers outright — their sites serve a bot-protection page to
-> Playwright while loading normally in a real browser. FlySafair permits
-> automation, so the whole funnel runs live. The framework does **not**
-> attempt to evade bot protection; where a site blocks it, the test skips
-> (see below) rather than faking a human session. The Emirates profile is
-> kept in `fixtures/siteProfile.ts` for reference.
+> **Why FlySafair?** Many flag carriers block automated browsers outright —
+> their sites serve a bot-protection page to Playwright while loading normally
+> in a real browser. FlySafair permits automation, so the whole funnel runs
+> live. The framework does **not** attempt to evade bot protection; where a
+> site blocks it, the test skips (see below) rather than faking a human
+> session.
 
 ## Architecture (deliberately simple)
 
@@ -99,9 +98,9 @@ Optionally also set a `BASE_URL` repo variable to run CI against staging.
 ### Note on production bot protection
 
 FlySafair (the active target) permits automation, so the funnel runs live.
-Other airlines don't: a flagged request is served a bot-protection page
-(e.g. Emirates redirects to `/error/accessrestricted.html`) while the site
-loads normally in a real browser.
+Many other airlines don't: a flagged request is served a bot-protection
+page (often a redirect to an "access restricted" URL) while the site loads
+normally in a real browser.
 
 **When a profile defines its bot-block signatures and the site serves that
 page, the suite skips rather than fails.** An external block is not a code
