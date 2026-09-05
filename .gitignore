@@ -3,3 +3,6 @@ test-results/
 playwright-report/
 .DS_Store
 .claude/settings.local.json
+
+# Unrelated local script (belongs to another project)
+one-login.mjs
