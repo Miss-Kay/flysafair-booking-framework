@@ -73,7 +73,7 @@ BASE_URL=https://staging.example.com npm test
 ## CI/CD
 
 `.github/workflows/playwright.yml` typechecks, runs the suite, and publishes
-reports on push, PR, a weekly schedule (Mondays 06:00 SAST), and manual
+reports on push, PR, a schedule (every 3rd day, 06:00 SAST), and manual
 dispatch. Reports upload as a GitHub artifact **and** sync to S3 — both a
 per-run URL and a stable `reports/latest/` link, served over HTTPS via
 CloudFront (`REPORT_BASE_URL` repo variable). Old reports expire from S3
