@@ -17,7 +17,7 @@ export default defineConfig({
     ['junit', { outputFile: 'test-results/junit.xml' }], // Jira/Xray-importable
   ],
   use: {
-    baseURL: process.env.BASE_URL ?? site.baseUrl,
+    baseURL: process.env.BASE_URL || site.baseUrl, // empty/unset → site profile
     trace: 'retain-on-failure',
     screenshot: 'on',
     video: 'retain-on-failure',
