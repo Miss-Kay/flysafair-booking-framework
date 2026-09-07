@@ -15,19 +15,52 @@ set -euo pipefail
 # Usage:
 #   ./scripts/setup-aws-reports.sh <bucket-name> <aws-region> <github-org/repo>
 # Example:
-#   ./scripts/setup-aws-reports.sh flysafair-funnel-reports eu-west-1 Miss-Kay/flysafair-booking-framework
+#   ./scripts/setup-aws-reports.sh miss-kay-emirates-funnel-reports us-east-1 Miss-Kay/flysafair-booking-framework
+#
+# Those are this repo's ACTUAL deployed values, not a template. The bucket
+# keeps a name from an earlier project, and the region is us-east-1 while the
+# sibling frameworks use eu-west-1 — so copying another repo's example here
+# would create a second bucket that CI never reads from, and quietly publish
+# reports nobody sees.
+#
+# Reports are served through CloudFront (REPORT_BASE_URL =
+# https://d1536s1ld6tg9l.cloudfront.net), so re-running this script re-applies
+# public-read to the origin bucket. Check that is still what you want before
+# running it against a bucket someone has since put behind an OAC.
 # ---------------------------------------------------------------------------
 
 BUCKET=${1:?usage: setup-aws-reports.sh <bucket-name> <aws-region> <github-org/repo>}
 REGION=${2:?usage: setup-aws-reports.sh <bucket-name> <aws-region> <github-org/repo>}
 REPO=${3:?usage: setup-aws-reports.sh <bucket-name> <aws-region> <github-org/repo>}
+# Derive the role name from the repo so two projects in the same AWS account
+# never share one role. They used to: a shared "playwright-report-publisher"
+# meant running this script for a second repo silently repointed the first
+# repo's trust policy and bucket grant at the new project, breaking its CI.
+# This repo predates the derive-from-repo convention and its live role is
+# still called "playwright-report-publisher". Keeping that name means re-running
+# this script keeps managing the role CI actually assumes, instead of quietly
+# creating a second one and leaving the deployed AWS_ROLE_ARN unmanaged.
+#
+# The one-role-per-repo RULE still holds and is enforced below: the role's trust
+# policy is checked against this repo before anything is written, so pointing
+# the script at a different repo refuses rather than repointing it. Renaming to
+# flysafair-booking-framework-report-publisher would be tidier and needs a
+# matching AWS_ROLE_ARN secret update, so it is a deliberate migration, not a
+# side effect of a bug fix.
 ROLE_NAME=${ROLE_NAME:-playwright-report-publisher}
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 echo "Account: $ACCOUNT_ID | Bucket: $BUCKET | Region: $REGION | Repo: $REPO"
 
 # --- 1. Report bucket with static website hosting --------------------------
-if [ "$REGION" = "us-east-1" ]; then
+# Idempotent: the script is meant to be safe to re-run, and it will be re-run,
+# because a later step can fail (a missing GitHub repo stops the role step) and
+# leave the bucket already made. Under `set -e` an unconditional create-bucket
+# aborts the whole script with BucketAlreadyOwnedByYou on the second attempt —
+# so the retry fails before reaching the step that failed last time.
+if aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
+  echo "Bucket $BUCKET already exists — skipping creation"
+elif [ "$REGION" = "us-east-1" ]; then
   aws s3api create-bucket --bucket "$BUCKET" --region "$REGION"
 else
   aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" \
@@ -62,6 +95,63 @@ aws iam create-open-id-connect-provider \
   || echo "OIDC provider already exists — skipping"
 
 # --- 3. IAM role assumable only by Actions runs of this repo ----------------
+# GitHub can issue OIDC tokens with an "immutable" subject that embeds the
+# numeric owner and repo IDs:
+#   repo:owner@86423962/repo@1358460147:ref:refs/heads/main
+# instead of the classic:
+#   repo:owner/repo:ref:refs/heads/main
+# The setting is account-wide and can be switched on after a role is created,
+# which silently breaks every trust policy that only matches the classic form
+# — the failure is an opaque "Not authorized to perform
+# sts:AssumeRoleWithWebIdentity". We trust BOTH forms so either setting works.
+# Read a numeric ID from the GitHub API, or fail.
+#
+# The validation is not paranoia. `gh api` writes its error BODY to stdout and
+# exits non-zero, so on a repo that does not exist yet this returns
+#   {"message":"Not Found","documentation_url":"...","status":"404"}
+# and `$(gh api ... 2>/dev/null || echo "")` captures that JSON as the "ID" —
+# 2>/dev/null only hides stderr, and the || branch appends to the output rather
+# than replacing it. Splicing that into the trust policy produced an opaque
+#   MalformedPolicyDocument: This policy contains invalid Json
+# from CreateRole. Requiring digits makes the failure impossible.
+lookup_numeric_id() {
+  local out
+  out=$(gh api "repos/$1" --jq "$2" 2>/dev/null) || return 1
+  case "$out" in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  printf '%s' "$out"
+}
+
+SUBS="\"repo:$REPO:*\""
+if ! command -v gh >/dev/null 2>&1; then
+  echo "WARNING: gh not found — trusting only the classic OIDC subject form." >&2
+  echo "If this account uses immutable OIDC subject IDs, CI will fail to assume" >&2
+  echo "the role. Install gh and re-run, or add the numeric form by hand." >&2
+elif REPO_ID=$(lookup_numeric_id "$REPO" .id) \
+  && OWNER_ID=$(lookup_numeric_id "$REPO" .owner.id); then
+  OWNER=${REPO%%/*}
+  NAME=${REPO##*/}
+  SUBS="$SUBS, \"repo:$OWNER@$OWNER_ID/$NAME@$REPO_ID:*\""
+  echo "Trusting both classic and immutable OIDC subjects for $REPO"
+  echo "  owner id $OWNER_ID, repo id $REPO_ID"
+else
+  echo "ERROR: could not read numeric IDs for $REPO." >&2
+  echo "" >&2
+  echo "Most often this means the repository does not exist on GitHub yet —" >&2
+  echo "create and push it first, then re-run this script:" >&2
+  echo "  gh repo create $REPO --public --source=. --push" >&2
+  echo "" >&2
+  echo "It can also mean gh is not authenticated (check: gh auth status)." >&2
+  echo "" >&2
+  echo "Refusing to continue: this account sends immutable OIDC subject IDs, so" >&2
+  echo "a role trusting only the classic form would fail at assume time with an" >&2
+  echo "opaque 'Not authorized to perform sts:AssumeRoleWithWebIdentity'." >&2
+  echo "Set ALLOW_CLASSIC_SUBJECT_ONLY=1 to proceed anyway." >&2
+  [ "${ALLOW_CLASSIC_SUBJECT_ONLY:-}" = "1" ] || exit 1
+  echo "ALLOW_CLASSIC_SUBJECT_ONLY=1 set — continuing with the classic form only." >&2
+fi
+
 TRUST=$(cat <<JSON
 {
   "Version": "2012-10-17",
@@ -73,16 +163,36 @@ TRUST=$(cat <<JSON
     "Action": "sts:AssumeRoleWithWebIdentity",
     "Condition": {
       "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
-      "StringLike":   { "token.actions.githubusercontent.com:sub": "repo:$REPO:*" }
+      "StringLike":   { "token.actions.githubusercontent.com:sub": [ $SUBS ] }
     }
   }]
 }
 JSON
 )
 
+# Validate before handing it to AWS. CreateRole reports only
+# "This policy contains invalid Json" with no indication of what or where.
+if command -v python3 >/dev/null 2>&1; then
+  if ! printf '%s' "$TRUST" | python3 -m json.tool >/dev/null 2>&1; then
+    echo "ERROR: the generated trust policy is not valid JSON:" >&2
+    printf '%s\n' "$TRUST" >&2
+    exit 1
+  fi
+fi
+
 if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+  # Refuse to repoint a role that belongs to a different repository.
+  EXISTING_SUB=$(aws iam get-role --role-name "$ROLE_NAME" \
+    --query 'Role.AssumeRolePolicyDocument.Statement[0].Condition.StringLike."token.actions.githubusercontent.com:sub"' \
+    --output text 2>/dev/null || echo "")
+  if [ -n "$EXISTING_SUB" ] && [ "$EXISTING_SUB" != "None" ] && ! echo "$EXISTING_SUB" | grep -q "repo:$REPO:\*"; then
+    echo "ERROR: role $ROLE_NAME is already trusted by $EXISTING_SUB, not repo:$REPO:*." >&2
+    echo "Refusing to repoint it — that would break the other repo's CI." >&2
+    echo "Re-run with a different name, e.g. ROLE_NAME=my-role $0 $BUCKET $REGION $REPO" >&2
+    exit 1
+  fi
   aws iam update-assume-role-policy --role-name "$ROLE_NAME" --policy-document "$TRUST"
-  echo "Role $ROLE_NAME already existed — trust policy refreshed"
+  echo "Role $ROLE_NAME already existed for this repo — trust policy refreshed"
 else
   aws iam create-role --role-name "$ROLE_NAME" \
     --assume-role-policy-document "$TRUST" >/dev/null
