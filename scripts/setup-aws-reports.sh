@@ -36,18 +36,16 @@ REPO=${3:?usage: setup-aws-reports.sh <bucket-name> <aws-region> <github-org/rep
 # never share one role. They used to: a shared "playwright-report-publisher"
 # meant running this script for a second repo silently repointed the first
 # repo's trust policy and bucket grant at the new project, breaking its CI.
-# This repo predates the derive-from-repo convention and its live role is
-# still called "playwright-report-publisher". Keeping that name means re-running
-# this script keeps managing the role CI actually assumes, instead of quietly
-# creating a second one and leaving the deployed AWS_ROLE_ARN unmanaged.
+# Derive the role name from the repo so two projects in the same AWS account
+# never share one role. They used to: this repo's role was called
+# "playwright-report-publisher", a generic name with nothing tying it to
+# FlySafair, so running this script for a second repo silently repointed this
+# repo's trust policy and bucket grant at the new project and broke its CI.
 #
-# The one-role-per-repo RULE still holds and is enforced below: the role's trust
-# policy is checked against this repo before anything is written, so pointing
-# the script at a different repo refuses rather than repointing it. Renaming to
-# flysafair-booking-framework-report-publisher would be tidier and needs a
-# matching AWS_ROLE_ARN secret update, so it is a deliberate migration, not a
-# side effect of a bug fix.
-ROLE_NAME=${ROLE_NAME:-playwright-report-publisher}
+# Renamed to the derived name on 2026-09-07; the old role was deleted once the
+# AWS_ROLE_ARN secret had been switched over and a CI run had proved the new
+# one assumable.
+ROLE_NAME=${ROLE_NAME:-$(basename "$REPO")-report-publisher}
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 echo "Account: $ACCOUNT_ID | Bucket: $BUCKET | Region: $REGION | Repo: $REPO"
